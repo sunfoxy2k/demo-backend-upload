@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Get Profile",
+            "type": "node",
+            "request": "attach",
+            "address": "localhost",
+            "port": 9999,
+            "localRoot": "${workspaceRoot}/src/get-profile/src",
+            "remoteRoot": "/var/task",
+            "protocol": "inspector",
+            "stopOnEntry": false,
+            "sourceMaps": true
+        }
+    ]
+}

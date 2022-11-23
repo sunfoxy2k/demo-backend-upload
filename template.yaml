@@ -1,0 +1,113 @@
+# This is the SAM template that represents the architecture of your serverless application
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-basics.html
+
+# The AWSTemplateFormatVersion identifies the capabilities of the template
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/format-version-structure.html
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  backend-profile
+
+Globals:
+  Function:
+    Runtime: nodejs16.x
+    Handler: index.handler
+    MemorySize: 128
+    Layers:
+      - !Ref ShareLibraryLayer
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref UserProfile
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  UserProfile:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: DEV
+      CorsConfiguration:
+        AllowMethods: 
+          - "*"
+        AllowHeaders:
+          - "*"
+        AllowOrigins:
+          - "*"
+  ShareLibraryLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: src/common
+      RetentionPolicy : Delete
+    Metadata:
+      BuildMethod: nodejs16.x
+
+  GetProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/get-profile/src
+      Runtime: nodejs16.x
+      MemorySize: 128
+      Timeout: 100
+      Description: Get User Profile
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfile
+      Events:
+        GetProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGatewayApi
+            Path: /user
+            Method: GET
+
+  PutProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/put-profile/src
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: Put User Profile Image
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfile
+      Events:
+        PutProfile:
+          Type: HttpApi
+          Properties:
+            Path: /user
+            Method: PUT
+            ApiId: !Ref ApiGatewayApi
+
+  preflightFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri : src/preflight/src
+      Events:
+        OptionApi:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: OPTIONS
+            ApiId: !Ref ApiGatewayApi
+  # Simple syntax to create a DynamoDB table with a single attribute primary key, more in
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlesssimpletable
+Outputs:
+  WebEndpoint:
+    Description: "API Gateway endpoint URL for DEV stage"
+    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/DEV"
+
+  Database:
+    Description: "DynamoDB endpoint"
+    Value: !Ref UserProfile
